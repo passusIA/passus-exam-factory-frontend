@@ -73,9 +73,25 @@ export const api = {
     request<{ download_url: string; format: string }>(`/exports/${exportId}/download`),
 
   // Folders
-  listFolders: () => request<Folder[]>("/folders"),
+  listFolders: () => request<FolderList>("/folders"),
   createFolder: (data: { name: string; description?: string }) =>
     request<Folder>("/folders", { method: "POST", body: JSON.stringify(data) }),
+  deleteFolder: (id: string) =>
+    request<void>(`/folders/${id}`, { method: "DELETE" }),
+
+  // Sources
+  listSources: (folderId: string) =>
+    request<SourceList>(`/folders/${folderId}/sources`),
+  addUrlSource: (folderId: string, url: string) =>
+    request<Source>(`/folders/${folderId}/sources/url`, {
+      method: "POST", body: JSON.stringify({ url }),
+    }),
+  addFileSource: (folderId: string, data: { original_name: string; mime_type: string; source_path: string }) =>
+    request<Source>(`/folders/${folderId}/sources/file`, {
+      method: "POST", body: JSON.stringify(data),
+    }),
+  deleteSource: (folderId: string, sourceId: string) =>
+    request<void>(`/folders/${folderId}/sources/${sourceId}`, { method: "DELETE" }),
 
   // Tenant
   getTenant: () => request<Tenant>("/tenants/me"),
@@ -155,7 +171,33 @@ export interface Folder {
   id: string;
   name: string;
   description?: string;
+  status: string;
   created_at: string;
+  updated_at: string;
+}
+
+export interface FolderList {
+  items: Folder[];
+  total: number;
+}
+
+export interface Source {
+  id: string;
+  folder_id: string;
+  type: string;
+  source_path: string;
+  original_name?: string;
+  mime_type?: string;
+  status: string;
+  rejection_reason?: string;
+  chunks_count: number;
+  processed_at?: string;
+  created_at: string;
+}
+
+export interface SourceList {
+  items: Source[];
+  total: number;
 }
 
 export interface Tenant {
@@ -210,9 +252,18 @@ export interface Plan {
 
 export interface CreateExamPayload {
   name: string;
-  blueprint_id: string;
   folder_id: string;
   description?: string;
+  total_questions: number;
+  bank_size: number;
+  duration_minutes: number;
+  difficulty: string;
+  language: string;
+  config: {
+    question_types: Record<string, number>;
+    bloom_distribution: Record<string, number>;
+  };
+  output_schema: Record<string, unknown>;
 }
 
 export interface QuestionFilters {
