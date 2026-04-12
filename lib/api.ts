@@ -50,6 +50,8 @@ export const api = {
     request<void>(`/exams/${id}`, { method: "DELETE" }),
   startExam: (id: string) =>
     request<Exam>(`/exams/${id}/start`, { method: "POST" }),
+  approveExam: (id: string) =>
+    request<Exam>(`/exams/${id}/approve`, { method: "POST" }),
 
   // Questions
   listQuestions: (examId: string, params?: QuestionFilters) => {

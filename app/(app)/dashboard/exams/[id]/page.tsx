@@ -10,15 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft, Play, Download, CheckCircle2, XCircle,
-  Star, AlertCircle, Loader2, ChevronDown, ChevronUp,
+  Star, AlertCircle, Loader2, ChevronDown, ChevronUp, ThumbsUp,
 } from "lucide-react";
 import Link from "next/link";
 
 // ── Pipeline step labels ───────────────────────────────────────────────────────
-const PIPELINE_STEPS = ["ingesting","analyzing","blueprinting","generating","reviewing","publishing","done"];
+const PIPELINE_STEPS = ["ingesting","analyzing","blueprinting","generating","reviewing","awaiting_review","publishing","done"];
 const STEP_LABEL: Record<string, string> = {
   ingesting: "Ingiriendo", analyzing: "Analizando", blueprinting: "Diseñando",
-  generating: "Generando", reviewing: "Revisando", publishing: "Publicando", done: "Completo",
+  generating: "Generando", reviewing: "Revisando", awaiting_review: "Revisión humana",
+  publishing: "Publicando", done: "Completo",
 };
 
 const DIFFICULTY_LABEL: Record<string, string> = { easy: "Fácil", medium: "Media", hard: "Difícil" };
@@ -199,6 +200,7 @@ export default function ExamDetailPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -218,10 +220,10 @@ export default function ExamDetailPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Poll while pipeline is running
+  // Poll while pipeline is running (no polling en awaiting_review: espera acción humana)
   useEffect(() => {
     if (!exam) return;
-    if (["done", "failed", "pending"].includes(exam.status)) return;
+    if (["done", "failed", "pending", "awaiting_review"].includes(exam.status)) return;
 
     const timer = setInterval(fetchData, 4000);
     return () => clearInterval(timer);
@@ -236,6 +238,19 @@ export default function ExamDetailPage() {
       setError(e.message);
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleApproveExam = async () => {
+    setApproving(true);
+    setError(null);
+    try {
+      const updated = await api.approveExam(id);
+      setExam(updated);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -269,7 +284,7 @@ export default function ExamDetailPage() {
 
   const finalQuestions = questions.filter((q) => !q.bank_only);
   const bankQuestions = questions.filter((q) => q.bank_only);
-  const isPipeline = !["pending", "done", "failed"].includes(exam.status);
+  const isPipeline = !["pending", "done", "failed", "awaiting_review"].includes(exam.status);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -306,6 +321,33 @@ export default function ExamDetailPage() {
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Iniciar generación
           </Button>
+        )}
+
+        {exam.status === "awaiting_review" && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Revisión humana requerida (Checkpoint H2)</p>
+                <p className="text-amber-700 mt-0.5">
+                  Revisa las preguntas generadas abajo. Cuando estés conforme, aprueba el banco
+                  para iniciar la publicación final.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+              onClick={handleApproveExam}
+              disabled={approving}
+            >
+              {approving
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <ThumbsUp className="h-4 w-4" />
+              }
+              Aprobar banco y publicar
+            </Button>
+          </div>
         )}
 
         {exam.status === "failed" && (
