@@ -41,7 +41,8 @@ export class ApiError extends Error {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const api = {
   // Exams
-  listExams: () => request<Exam[]>("/exams"),
+  listExams: () =>
+    request<{ items: Exam[]; total: number }>("/exams").then((r) => r.items),
   getExam: (id: string) => request<Exam>(`/exams/${id}`),
   createExam: (data: CreateExamPayload) =>
     request<Exam>("/exams", { method: "POST", body: JSON.stringify(data) }),
@@ -53,7 +54,8 @@ export const api = {
   // Questions
   listQuestions: (examId: string, params?: QuestionFilters) => {
     const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<Question[]>(`/exams/${examId}/questions${qs}`);
+    return request<{ items: Question[]; total: number }>(`/exams/${examId}/questions${qs}`)
+      .then((r) => r.items);
   },
   approveQuestion: (id: string) =>
     request<Question>(`/questions/${id}/approve`, { method: "POST" }),
