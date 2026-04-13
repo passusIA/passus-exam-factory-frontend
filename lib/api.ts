@@ -137,8 +137,10 @@ export interface Exam {
   quality_score?: number;
   pipeline_log_json: PipelineStep[];
   created_at: string;
+  updated_at?: string;
   folder_id: string;
-  blueprint_id: string;
+  blueprint_id?: string;
+  celery_task_id?: string;
 }
 
 export interface PipelineStep {
