@@ -103,6 +103,7 @@ export const api = {
 
   // Tenant
   getTenant: () => request<Tenant>("/tenants/me"),
+  getStats: () => request<TenantStats>("/tenants/me/stats"),
   getSubscription: () => request<Subscription>("/tenants/me/subscription"),
   listMembers: () => request<Member[]>("/tenants/me/members"),
   inviteMember: (email: string, role: string) =>
@@ -230,6 +231,16 @@ export interface Tenant {
   slug: string;
   status: string;
   plan_id?: string;
+}
+
+export interface TenantStats {
+  exams_active: number;
+  exams_review: number;
+  exams_done: number;
+  exams_failed: number;
+  exams_total: number;
+  cost_month_usd: number;
+  tokens_month: number;
 }
 
 export interface Subscription {
