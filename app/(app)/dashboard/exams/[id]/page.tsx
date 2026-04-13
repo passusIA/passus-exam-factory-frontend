@@ -565,6 +565,54 @@ export default function ExamArenaPage() {
         </div>
       )}
 
+      {/* ── Pipeline running banner ── */}
+      {(isPipeline || exam.status === "pending") && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Loader2 className="h-5 w-5 text-red-500 animate-spin shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-red-800">Pipeline en ejecución</p>
+              <p className="text-xs text-red-600 truncate">
+                Paso actual: <span className="font-medium">{exam.status}</span>
+                {" · "}actualiza cada 4s
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="flex items-center gap-2 shrink-0 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-semibold transition-colors"
+          >
+            {cancelling
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Square className="h-4 w-4" />}
+            Detener pipeline
+          </button>
+        </div>
+      )}
+
+      {/* Awaiting review banner */}
+      {exam.status === "awaiting_review" && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Esperando revisión humana</p>
+              <p className="text-xs text-amber-700">Revisa las preguntas en la pestaña inferior y aprueba el banco.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="gap-2 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={handleApprove}
+            disabled={approving}
+          >
+            {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
+            Aprobar banco
+          </Button>
+        </div>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {[
