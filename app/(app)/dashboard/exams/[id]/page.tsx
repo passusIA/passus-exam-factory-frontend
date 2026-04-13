@@ -536,13 +536,7 @@ export default function ExamArenaPage() {
 
         {/* Actions */}
         <div className="flex gap-2 shrink-0">
-          {exam.status === "pending" && (
-            <Button size="sm" className="gap-1.5" onClick={handleStart} disabled={starting}>
-              {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Iniciar pipeline
-            </Button>
-          )}
-          {(isPipeline || exam.status === "pending") && (
+          {isPipeline && (
             <Button size="sm" variant="outline" className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
               onClick={handleCancel} disabled={cancelling}>
               {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
@@ -565,8 +559,27 @@ export default function ExamArenaPage() {
         </div>
       )}
 
-      {/* ── Pipeline running banner ── */}
-      {(isPipeline || exam.status === "pending") && (
+      {/* ── Pending: listo para iniciar ── */}
+      {exam.status === "pending" && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Play className="h-5 w-5 text-blue-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-blue-800">Listo para iniciar</p>
+              <p className="text-xs text-blue-600">
+                El examen está configurado. Presiona <strong>Iniciar pipeline</strong> para comenzar la generación de preguntas.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" className="gap-1.5 shrink-0" onClick={handleStart} disabled={starting}>
+            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Iniciar pipeline
+          </Button>
+        </div>
+      )}
+
+      {/* ── Pipeline en ejecución ── */}
+      {isPipeline && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <Loader2 className="h-5 w-5 text-red-500 animate-spin shrink-0" />
