@@ -52,6 +52,10 @@ export const api = {
     request<Exam>(`/exams/${id}/start`, { method: "POST" }),
   approveExam: (id: string) =>
     request<Exam>(`/exams/${id}/approve`, { method: "POST" }),
+  cancelExam: (id: string) =>
+    request<Exam>(`/exams/${id}/cancel`, { method: "POST" }),
+  getExamUsage: (id: string) =>
+    request<ExamUsage>(`/exams/${id}/usage`),
 
   // Questions
   listQuestions: (examId: string, params?: QuestionFilters) => {
@@ -138,9 +142,25 @@ export interface Exam {
 
 export interface PipelineStep {
   step: string;
-  status: "ok" | "error";
+  status: "ok" | "error" | "cancelled";
   ts: string;
   error?: string;
+}
+
+export interface ExamUsage {
+  exam_id: string;
+  total_cost_usd: number;
+  total_tokens_input: number;
+  total_tokens_output: number;
+  total_tokens: number;
+  by_agent: {
+    agent: string;
+    model_id: string;
+    tokens_input: number;
+    tokens_output: number;
+    cost_usd: number;
+    duration_ms: number;
+  }[];
 }
 
 export interface Question {

@@ -4,22 +4,42 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api, type Exam, type Question, type ExamExport } from "@/lib/api";
+import { api, type Exam, type Question, type ExamExport, type ExamUsage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft, Play, Download, CheckCircle2, XCircle,
   Star, AlertCircle, Loader2, ChevronDown, ChevronUp, ThumbsUp,
+  Square, Zap, DollarSign, Clock,
 } from "lucide-react";
 import Link from "next/link";
 
 // ── Pipeline step labels ───────────────────────────────────────────────────────
-const PIPELINE_STEPS = ["ingesting","analyzing","blueprinting","generating","reviewing","awaiting_review","publishing","done"];
+const PIPELINE_STEPS = [
+  "ingesting","analyzing","blueprinting","generating",
+  "validating","reviewing","bias_check","coverage","qa_review",
+  "awaiting_review","publishing","done",
+];
 const STEP_LABEL: Record<string, string> = {
+  ingesting: "Ingiriendo contenido",
+  analyzing: "Analizando currículo",
+  blueprinting: "Diseñando blueprint",
+  generating: "Generando preguntas",
+  validating: "Validando distractores",
+  reviewing: "Revisando técnicamente",
+  bias_check: "Verificando sesgo",
+  coverage: "Verificando cobertura",
+  qa_review: "Revisión de calidad",
+  awaiting_review: "Revisión humana",
+  publishing: "Publicando",
+  done: "Completo",
+};
+const STEP_LABEL_SHORT: Record<string, string> = {
   ingesting: "Ingiriendo", analyzing: "Analizando", blueprinting: "Diseñando",
-  generating: "Generando", reviewing: "Revisando", awaiting_review: "Revisión humana",
-  publishing: "Publicando", done: "Completo",
+  generating: "Generando", validating: "Validando", reviewing: "Revisando",
+  bias_check: "Sesgo", coverage: "Cobertura", qa_review: "QA",
+  awaiting_review: "Rev. humana", publishing: "Publicando", done: "Completo",
 };
 
 const DIFFICULTY_LABEL: Record<string, string> = { easy: "Fácil", medium: "Media", hard: "Difícil" };
@@ -27,9 +47,18 @@ const BLOOM_LABEL: Record<string, string> = {
   remember: "Recordar", understand: "Comprender", apply: "Aplicar",
   analyze: "Analizar", evaluate: "Evaluar", create: "Crear",
 };
-const FORMAT_EXT: Record<string, string> = { excel: "xlsx", csv: "csv", json: "json", pdf: "pdf", qti: "xml" };
 
-// ── Sub-components (defined at module level — no inline components) ────────────
+const PIPELINE_STATUSES = new Set([
+  "ingesting","analyzing","blueprinting","generating",
+  "validating","reviewing","bias_check","coverage","qa_review","publishing",
+]);
+
+function fmt_ms(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function PipelineProgress({ status }: { status: string }) {
   const currentIdx = PIPELINE_STEPS.indexOf(status);
@@ -39,15 +68,17 @@ function PipelineProgress({ status }: { status: string }) {
         const done = i < currentIdx || status === "done";
         const active = step === status && status !== "done";
         const failed = status === "failed" && i === currentIdx;
+        const cancelled = status === "cancelled" && i === currentIdx;
         return (
           <div key={step} className="flex items-center gap-1">
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
               done ? "bg-accent/10 text-accent border-accent/20"
               : active ? "bg-primary/10 text-primary border-primary/30 animate-pulse"
               : failed ? "bg-destructive/10 text-destructive border-destructive/20"
+              : cancelled ? "bg-orange-100 text-orange-700 border-orange-300"
               : "bg-muted text-muted-foreground border-border"
             }`}>
-              {STEP_LABEL[step] ?? step}
+              {STEP_LABEL_SHORT[step] ?? step}
             </span>
             {i < PIPELINE_STEPS.length - 1 && (
               <span className="text-muted-foreground text-xs">›</span>
@@ -55,6 +86,115 @@ function PipelineProgress({ status }: { status: string }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PipelineLogPanel({ log, status }: { log: Exam["pipeline_log_json"]; status: string }) {
+  if (!log || log.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+      <h2 className="text-sm font-semibold flex items-center gap-1.5">
+        <Clock className="h-4 w-4 text-muted-foreground" />
+        Progreso del pipeline
+      </h2>
+      <div className="space-y-1">
+        {log.map((entry, i) => (
+          <div key={i} className={`flex items-start gap-2 text-xs rounded-md px-2 py-1.5 ${
+            entry.status === "ok" ? "bg-accent/5 text-foreground"
+            : entry.status === "error" ? "bg-destructive/10 text-destructive"
+            : entry.status === "cancelled" ? "bg-orange-50 text-orange-700"
+            : "bg-muted/50 text-muted-foreground"
+          }`}>
+            {entry.status === "ok"
+              ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-accent" />
+              : entry.status === "error"
+              ? <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
+              : entry.status === "cancelled"
+              ? <Square className="h-3.5 w-3.5 shrink-0 mt-0.5 text-orange-500" />
+              : <Loader2 className="h-3.5 w-3.5 shrink-0 mt-0.5 animate-spin" />
+            }
+            <div className="flex-1 min-w-0">
+              <span className="font-medium">{STEP_LABEL[entry.step] ?? entry.step}</span>
+              {entry.error && (
+                <p className="text-destructive mt-0.5 break-words">{entry.error}</p>
+              )}
+            </div>
+            <span className="text-muted-foreground shrink-0">
+              {entry.ts ? new Date(entry.ts).toLocaleTimeString("es-CL") : ""}
+            </span>
+          </div>
+        ))}
+        {PIPELINE_STATUSES.has(status) && (
+          <div className="flex items-center gap-2 text-xs rounded-md px-2 py-1.5 bg-primary/5 text-primary">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <span className="font-medium">{STEP_LABEL[status] ?? status}...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UsagePanel({ examId }: { examId: string }) {
+  const [usage, setUsage] = useState<ExamUsage | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getExamUsage(examId)
+      .then(setUsage)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [examId]);
+
+  if (loading) return <div className="h-16 rounded-lg bg-muted animate-pulse" />;
+  if (!usage || usage.by_agent.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <h2 className="text-sm font-semibold flex items-center gap-1.5">
+        <DollarSign className="h-4 w-4 text-muted-foreground" />
+        Uso de tokens y costo
+      </h2>
+
+      {/* Resumen */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-center">
+          <p className="text-xs text-muted-foreground">Costo total</p>
+          <p className="text-base font-bold text-foreground">
+            ${usage.total_cost_usd < 0.01
+              ? usage.total_cost_usd.toFixed(4)
+              : usage.total_cost_usd.toFixed(3)}
+          </p>
+        </div>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-center">
+          <p className="text-xs text-muted-foreground">Tokens entrada</p>
+          <p className="text-base font-bold text-foreground">{usage.total_tokens_input.toLocaleString()}</p>
+        </div>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-center">
+          <p className="text-xs text-muted-foreground">Tokens salida</p>
+          <p className="text-base font-bold text-foreground">{usage.total_tokens_output.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Desglose por agente */}
+      <div className="space-y-1">
+        {usage.by_agent.map((a, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-border/50 last:border-0">
+            <span className="flex-1 font-medium truncate">{a.agent}</span>
+            <span className="text-muted-foreground shrink-0">{a.model_id.split("/").pop()}</span>
+            <span className="text-muted-foreground shrink-0 w-16 text-right">
+              {(a.tokens_input + a.tokens_output).toLocaleString()} tok
+            </span>
+            <span className="text-amber-700 font-medium shrink-0 w-16 text-right">
+              ${a.cost_usd.toFixed(4)}
+            </span>
+            <span className="text-muted-foreground shrink-0 w-12 text-right">
+              {fmt_ms(a.duration_ms)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -191,7 +331,7 @@ function ExportButton({ examId }: { examId: string }) {
   );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ExamDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -201,6 +341,7 @@ export default function ExamDetailPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -220,17 +361,17 @@ export default function ExamDetailPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Poll while pipeline is running (no polling en awaiting_review: espera acción humana)
+  // Poll mientras corre el pipeline
   useEffect(() => {
     if (!exam) return;
-    if (["done", "failed", "pending", "awaiting_review"].includes(exam.status)) return;
-
+    if (!PIPELINE_STATUSES.has(exam.status)) return;
     const timer = setInterval(fetchData, 4000);
     return () => clearInterval(timer);
   }, [exam, fetchData]);
 
   const handleStart = async () => {
     setStarting(true);
+    setError(null);
     try {
       const updated = await api.startExam(id);
       setExam(updated);
@@ -251,6 +392,20 @@ export default function ExamDetailPage() {
       setError(e.message);
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!confirm("¿Cancelar el pipeline en curso? El progreso actual se perderá.")) return;
+    setCancelling(true);
+    setError(null);
+    try {
+      const updated = await api.cancelExam(id);
+      setExam(updated);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -282,9 +437,9 @@ export default function ExamDetailPage() {
     );
   }
 
+  const isPipeline = PIPELINE_STATUSES.has(exam.status);
   const finalQuestions = questions.filter((q) => !q.bank_only);
   const bankQuestions = questions.filter((q) => q.bank_only);
-  const isPipeline = !["pending", "done", "failed", "awaiting_review"].includes(exam.status);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -309,8 +464,13 @@ export default function ExamDetailPage() {
               Calidad: {Number(exam.quality_score).toFixed(1)}/100
             </span>
           )}
-          <Badge variant={exam.status === "done" ? "default" : exam.status === "failed" ? "destructive" : "secondary"}>
-            {exam.status}
+          <Badge variant={
+            exam.status === "done" ? "default"
+            : exam.status === "failed" ? "destructive"
+            : exam.status === "cancelled" ? "outline"
+            : "secondary"
+          }>
+            {exam.status === "cancelled" ? "Cancelado" : exam.status}
           </Badge>
         </div>
 
@@ -321,6 +481,25 @@ export default function ExamDetailPage() {
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Iniciar generación
           </Button>
+        )}
+
+        {isPipeline && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-sm text-primary">
+              <Zap className="h-4 w-4 animate-pulse" />
+              <span>Pipeline en ejecución — actualizando cada 4s</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 ml-auto"
+              onClick={handleCancel}
+              disabled={cancelling}
+            >
+              {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+              Cancelar pipeline
+            </Button>
+          </div>
         )}
 
         {exam.status === "awaiting_review" && (
@@ -341,10 +520,7 @@ export default function ExamDetailPage() {
               onClick={handleApproveExam}
               disabled={approving}
             >
-              {approving
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <ThumbsUp className="h-4 w-4" />
-              }
+              {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
               Aprobar banco y publicar
             </Button>
           </div>
@@ -353,7 +529,14 @@ export default function ExamDetailPage() {
         {exam.status === "failed" && (
           <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            El pipeline falló. Revisa los logs del examen.
+            El pipeline falló. Revisa el log de progreso abajo.
+          </div>
+        )}
+
+        {exam.status === "cancelled" && (
+          <div className="flex items-center gap-2 text-sm text-orange-700 bg-orange-50 rounded-md px-3 py-2 border border-orange-200">
+            <Square className="h-4 w-4 shrink-0" />
+            Pipeline cancelado por el usuario.
           </div>
         )}
       </div>
@@ -362,6 +545,16 @@ export default function ExamDetailPage() {
         <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
           <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
+      )}
+
+      {/* Log de progreso del pipeline */}
+      {(exam.pipeline_log_json?.length > 0 || isPipeline) && (
+        <PipelineLogPanel log={exam.pipeline_log_json} status={exam.status} />
+      )}
+
+      {/* Gasto de tokens (visible cuando hay datos) */}
+      {(isPipeline || ["done","failed","cancelled","awaiting_review"].includes(exam.status)) && (
+        <UsagePanel examId={id} />
       )}
 
       {/* Exportaciones */}
