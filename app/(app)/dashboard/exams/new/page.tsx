@@ -55,6 +55,7 @@ export default function NewExamPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [foldersError, setFoldersError] = useState("");
 
   useEffect(() => {
     api.listFolders()
@@ -62,7 +63,7 @@ export default function NewExamPage() {
         setFolders(data.items);
         if (data.items.length > 0) setFolderId(data.items[0].id);
       })
-      .catch(() => {})
+      .catch((e) => setFoldersError(e.message ?? "Error al cargar carpetas"))
       .finally(() => setLoadingFolders(false));
   }, []);
 
@@ -139,10 +140,17 @@ export default function NewExamPage() {
             <label className="text-sm font-medium">Carpeta de contenido</label>
             {loadingFolders ? (
               <div className="mt-1 h-9 rounded-md bg-muted animate-pulse" />
-            ) : folders.length === 0 ? (
-              <p className="mt-1 text-sm text-destructive">
-                No tienes carpetas con contenido. <Link href="/dashboard/folders" className="underline">Crea una primero.</Link>
+            ) : foldersError ? (
+              <p className="mt-1 text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {foldersError} — <Link href="/dashboard/folders" className="underline">ir a carpetas</Link>
               </p>
+            ) : folders.length === 0 ? (
+              <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                No tienes carpetas de contenido.{" "}
+                <Link href="/dashboard/folders" className="underline font-medium">Crea una carpeta primero</Link>
+                {" "}y sube el material de estudio antes de crear un examen.
+              </div>
             ) : (
               <select
                 value={folderId} onChange={(e) => setFolderId(e.target.value)} required
@@ -152,6 +160,11 @@ export default function NewExamPage() {
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
+            )}
+            {folders.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Los archivos de esta carpeta son el material base para generar las preguntas.
+              </p>
             )}
           </div>
         </section>
@@ -258,7 +271,7 @@ export default function NewExamPage() {
           <Link href="/dashboard">
             <Button type="button" variant="outline">Cancelar</Button>
           </Link>
-          <Button type="submit" disabled={saving || folders.length === 0}>
+          <Button type="submit" disabled={saving || folders.length === 0 || !!foldersError}>
             {saving ? "Creando..." : "Crear examen"}
           </Button>
         </div>
