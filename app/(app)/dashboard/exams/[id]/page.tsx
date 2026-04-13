@@ -542,7 +542,7 @@ export default function ExamArenaPage() {
               Iniciar pipeline
             </Button>
           )}
-          {isPipeline && (
+          {(isPipeline || exam.status === "pending") && (
             <Button size="sm" variant="outline" className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
               onClick={handleCancel} disabled={cancelling}>
               {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
