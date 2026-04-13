@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { AppSidebar } from "@/components/app/AppSidebar";
+import { RightPanelProvider, RightPanelSlot } from "@/components/layout/RightPanelContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
@@ -28,11 +29,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!session) return null;
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
-      <AppSidebar />
-      <main className="flex-1 min-w-0 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <RightPanelProvider>
+      <div className="flex min-h-screen bg-muted/30">
+        <AppSidebar />
+        <main className="flex-1 min-w-0 overflow-auto">
+          {children}
+        </main>
+        <RightPanelSlot />
+      </div>
+    </RightPanelProvider>
   );
 }
